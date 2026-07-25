@@ -48,34 +48,45 @@ def acknowledge_alert(req: AcknowledgeRequest, db: Session = Depends(get_db)):
 @app.get("/api/simulate")
 async def simulate_stream(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     def run_simulation():
-        csv_path = os.path.join(os.path.dirname(__file__), 'data', 'synthetic_logs.csv')
-        df = pd.read_csv(csv_path)
-        df_bf = df[df['label'] == 'brute_force']
-        df_lm = df[df['label'] == 'lateral_movement']
-        df_it = df[df['label'] == 'impossible_travel']
-        df_normal = df[df['label'] == 'normal']
-        demo_bf = df_bf.sample(n=min(5, len(df_bf)))
-        demo_lm = df_lm.sample(n=min(5, len(df_lm)))
-        demo_it = df_it.sample(n=min(5, len(df_it)))
-        demo_normal = df_normal.sample(n=15)
-        demo_stream = pd.concat([demo_bf, demo_lm, demo_it, demo_normal]).sample(frac=1)
-        db_session = SessionLocal()
-        for _, row in demo_stream.iterrows():
-            log_data = row.to_dict()
-            analysis = detector.analyze_event(log_data)
-            if analysis["anomaly_type"] != "normal" or analysis["risk_score"] > 75:
+        try:
+            csv_path = os.path.join(os.path.dirname(__file__), 'data', 'synthetic_logs.csv')
+            df = pd.read_csv(csv_path)
+            
+            # ENTERPRISE DEMO LOGIC: Ensure true diversity across Entities and Attack Types
+            df_attacks = df[df['label'] != 'normal']
+            df_normal = df[df['label'] == 'normal']
+            
+            diverse_attacks = df_attacks.groupby(['label', 'entity_id']).head(2) 
+            diverse_attacks = diverse_attacks.sample(frac=1).head(20) 
+            
+            demo_normal = df_normal.sample(n=15)
+            demo_stream = pd.concat([diverse_attacks, demo_normal]).sample(frac=1)
+            
+            db_session = SessionLocal()
+            for _, row in demo_stream.iterrows():
+                log_data = row.to_dict()
+                analysis = detector.analyze_event(log_data)
+                py_timestamp = pd.to_datetime(log_data["timestamp"]).to_pydatetime()
+                
                 new_alert = Alert(
-                    timestamp=pd.to_datetime(log_data["timestamp"]),
-                    entity_id=log_data["entity_id"],
-                    entity_type=log_data["entity_type"],
-                    source_ip=log_data["source_ip"],
-                    resource_accessed=log_data["resource_accessed"],
-                    risk_score=analysis["risk_score"],
-                    anomaly_type=analysis["anomaly_type"],
-                    explanation=analysis["explanation"]
+                    timestamp=py_timestamp,
+                    entity_id=str(log_data["entity_id"]),
+                    entity_type=str(log_data["entity_type"]),
+                    source_ip=str(log_data["source_ip"]),
+                    resource_accessed=str(log_data["resource_accessed"]),
+                    risk_score=float(analysis["risk_score"]),
+                    anomaly_type=str(analysis["anomaly_type"]),
+                    explanation=str(analysis["explanation"])
                 )
                 db_session.add(new_alert)
-                db_session.commit()
-        db_session.close()
+                    
+            db_session.commit()
+            db_session.close()
+            print("--- SIMULATION SUCCESS: Alerts injected into database! ---")
+            
+        except Exception as e:
+            # If it crashes in the background, print exactly why to the terminal
+            print(f"\nCRITICAL ERROR IN SIMULATION: {e}\n")
+
     background_tasks.add_task(run_simulation)
-    return {"message": "Simulation started in the background. Generating alerts..."}
+    return {"message": "Simulation started in the background."}

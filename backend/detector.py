@@ -36,30 +36,43 @@ class AnomalyDetector:
         return "Statistical deviation from baseline behaviour profile."
 
     def analyze_event(self, log_data: dict) -> dict:
+        """Main inference function."""
         features = self._engineer_single_event(log_data)
-        score = self.iso_forest.decision_function(features)[0]
-        risk_score = float(100 - ((score - (-0.3)) / (0.3 - (-0.3)) * 100))
-        risk_score = max(0, min(100, risk_score))
         
-        is_anomaly = self.iso_forest.predict(features)[0] == -1
+        # 1. Base Anomaly Detection (Statistical Outlier Score)
+        base_score = self.iso_forest.decision_function(features)[0]
+        base_risk = float(100 - ((base_score - (-0.3)) / (0.3 - (-0.3)) * 100))
+        base_risk = max(0.0, min(100.0, base_risk))
+        
+        is_anomaly = bool(self.iso_forest.predict(features)[0] == -1)
         
         result = {
             "is_anomaly": is_anomaly,
-            "risk_score": round(risk_score, 2),
+            "risk_score": round(base_risk, 2),
             "anomaly_type": "normal",
             "explanation": "Normal behavior."
         }
-        if is_anomaly or risk_score > 75: 
-            pred_class = self.classifier.predict(features)[0]
-            if pred_class != 'normal':
+        
+        # 2. ALWAYS run the Advanced Classifier (Don't gate it behind the Isolation Forest)
+        probabilities = self.classifier.predict_proba(features)[0]
+        classes = self.classifier.classes_
+        
+        attack_probs = {cls: prob for cls, prob in zip(classes, probabilities) if cls != 'normal'}
+        
+        if attack_probs:
+            top_attack = max(attack_probs, key=attack_probs.get)
+            ai_confidence = float(attack_probs[top_attack])
+            
+            # If the AI is over 40% confident it's a known attack vector, flag it immediately
+            if ai_confidence > 0.40:
                 result["is_anomaly"] = True
-                result["anomaly_type"] = pred_class
-                result["explanation"] = self._generate_explanation(pred_class, log_data)
-                import random
-                if pred_class == 'brute_force':
-                    result["risk_score"] = round(random.uniform(82.5, 89.9), 1)
-                elif pred_class == 'impossible_travel':
-                    result["risk_score"] = round(random.uniform(95.0, 99.5), 1)
-                elif pred_class == 'lateral_movement':
-                    result["risk_score"] = round(random.uniform(89.0, 94.5), 1)
+                result["anomaly_type"] = top_attack
+                
+                base_exp = self._generate_explanation(top_attack, log_data)
+                result["explanation"] = f"{base_exp} (AI Confidence: {int(ai_confidence * 100)}%)"
+                
+                calculated_risk = 60 + (ai_confidence * 40)
+                feature_jitter = (log_data.get('session_duration', 0) % 100) / 100.0
+                result["risk_score"] = round(min(99.9, calculated_risk + feature_jitter), 1)
+                
         return result
