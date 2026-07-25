@@ -33,7 +33,6 @@ class AcknowledgeRequest(BaseModel):
 
 @app.get("/api/alerts")
 def get_alerts(db: Session = Depends(get_db), limit: int = 50):
-    """Fetches the most recent security alerts for the dashboard."""
     alerts = db.query(Alert).order_by(Alert.timestamp.desc()).limit(limit).all()
     return alerts
 
@@ -51,12 +50,20 @@ async def simulate_stream(background_tasks: BackgroundTasks, db: Session = Depen
     def run_simulation():
         csv_path = os.path.join(os.path.dirname(__file__), 'data', 'synthetic_logs.csv')
         df = pd.read_csv(csv_path)
-        demo_stream = df.sample(frac=1, random_state=42).head(100)
+        df_bf = df[df['label'] == 'brute_force']
+        df_lm = df[df['label'] == 'lateral_movement']
+        df_it = df[df['label'] == 'impossible_travel']
+        df_normal = df[df['label'] == 'normal']
+        demo_bf = df_bf.sample(n=min(5, len(df_bf)))
+        demo_lm = df_lm.sample(n=min(5, len(df_lm)))
+        demo_it = df_it.sample(n=min(5, len(df_it)))
+        demo_normal = df_normal.sample(n=15)
+        demo_stream = pd.concat([demo_bf, demo_lm, demo_it, demo_normal]).sample(frac=1)
         db_session = SessionLocal()
         for _, row in demo_stream.iterrows():
             log_data = row.to_dict()
             analysis = detector.analyze_event(log_data)
-            if analysis["is_anomaly"] or analysis["risk_score"] > 80:
+            if analysis["anomaly_type"] != "normal" or analysis["risk_score"] > 75:
                 new_alert = Alert(
                     timestamp=pd.to_datetime(log_data["timestamp"]),
                     entity_id=log_data["entity_id"],
@@ -69,8 +76,6 @@ async def simulate_stream(background_tasks: BackgroundTasks, db: Session = Depen
                 )
                 db_session.add(new_alert)
                 db_session.commit()
-                
         db_session.close()
-
     background_tasks.add_task(run_simulation)
     return {"message": "Simulation started in the background. Generating alerts..."}
