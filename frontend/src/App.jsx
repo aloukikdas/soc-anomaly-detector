@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Activity, Server, AlertTriangle } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ShieldAlert, Activity, Server, AlertTriangle, Zap } from 'lucide-react';
+import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts';
 
 function App() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const fetchAlerts = async () => {
     try {
@@ -20,9 +21,20 @@ function App() {
 
   useEffect(() => {
     fetchAlerts();
-    const interval = setInterval(fetchAlerts, 5000);
+    const interval = setInterval(fetchAlerts, 2000); // Poll every 2 seconds for a faster demo feel
     return () => clearInterval(interval);
   }, []);
+
+  const startSimulation = async () => {
+    setIsSimulating(true);
+    try {
+      await fetch('http://127.0.0.1:8000/api/simulate');
+      setTimeout(() => setIsSimulating(false), 3000); // Reset button state after 3s
+    } catch (error) {
+      console.error("Simulation error:", error);
+      setIsSimulating(false);
+    }
+  };
 
   const getRiskColor = (score) => {
     if (score >= 80) return 'bg-soc-danger text-white';
@@ -30,22 +42,35 @@ function App() {
     return 'bg-soc-success text-white';
   };
 
-  // Process data for the Recharts timeline
   const chartData = alerts.map(alert => ({
     time: new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     risk: alert.risk_score
-  })).reverse(); // Reverse so oldest is on the left
+  })).reverse();
 
   return (
     <div className="min-h-screen p-6">
-      <header className="flex items-center justify-between mb-8 border-b border-gray-700 pb-4">
+      <header className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 border-b border-gray-700 pb-4 gap-4">
         <div className="flex items-center gap-3">
           <ShieldAlert className="text-soc-accent w-8 h-8" />
           <h1 className="text-2xl font-bold text-white">SOC Sentinel | AI Anomaly Detection</h1>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Activity className="w-4 h-4 text-soc-success animate-pulse" />
-          System Active
+        
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={startSimulation}
+            disabled={isSimulating}
+            className={`px-4 py-2 rounded font-medium text-sm transition-colors flex items-center gap-2 ${
+              isSimulating ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-soc-danger hover:bg-red-600 text-white shadow-lg shadow-red-900/20'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            {isSimulating ? 'Injecting...' : 'Simulate Live Attacks'}
+          </button>
+          
+          <div className="flex items-center gap-2 text-sm text-gray-400 bg-gray-800 px-3 py-1.5 rounded-full border border-gray-700">
+            <Activity className="w-4 h-4 text-soc-success animate-pulse" />
+            System Active
+          </div>
         </div>
       </header>
 
@@ -68,7 +93,6 @@ function App() {
           </p>
         </div>
 
-        {/* Chart Section */}
         <div className="bg-soc-card p-4 rounded-lg border border-gray-700 shadow-lg col-span-1 md:col-span-3 lg:col-span-1 h-32 flex flex-col justify-center">
              <h3 className="text-gray-400 font-medium mb-2 text-sm">Risk Score Trend</h3>
              <ResponsiveContainer width="100%" height="100%">
