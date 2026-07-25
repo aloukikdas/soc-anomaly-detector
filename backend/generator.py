@@ -1,9 +1,3 @@
-"""
-backend/generator.py
-What this does: Generates baseline enterprise logs and injects specific cyber attack patterns.
-Why it exists: Provides the imbalanced, labeled dataset required to train our anomaly detection models.
-"""
-
 import pandas as pd
 import numpy as np
 from faker import Faker
@@ -16,22 +10,17 @@ Faker.seed(42)
 np.random.seed(42)
 random.seed(42)
 
-# --- CONFIGURATION ---
 NUM_USERS = 50
 NUM_DAYS = 30
 START_DATE = datetime(2026, 6, 25)
 OUTPUT_DIR = "data"
 
-# Enterprise Resources
 RESOURCES = ['VPN_Gateway', 'HR_Portal', 'Finance_DB', 'GitLab', 'AWS_Console', 'Jira']
 AUTH_METHODS = ['Password', 'MFA_Token', 'Biometric', 'SSO']
 
-# Ensure output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# --- 1. GENERATE ENTITIES ---
 def generate_entities(num_users):
-    """Creates a baseline profile for each user."""
     users = []
     for _ in range(num_users):
         users.append({
@@ -44,9 +33,7 @@ def generate_entities(num_users):
         })
     return users
 
-# --- 2. GENERATE NORMAL LOGS ---
 def generate_normal_logs(users, start_date, days):
-    """Generates benign daily activity based on user profiles."""
     logs = []
     current_time = start_date
     end_date = start_date + timedelta(days=days)
@@ -54,7 +41,7 @@ def generate_normal_logs(users, start_date, days):
     while current_time < end_date:
         for user in users:
             if user['working_hours'][0] <= current_time.hour <= user['working_hours'][1]:
-                if random.random() < 0.8: # 80% chance of activity during working hours
+                if random.random() < 0.8:
                     logs.append({
                         'timestamp': current_time + timedelta(minutes=random.randint(0, 59)),
                         'entity_id': user['entity_id'],
@@ -71,16 +58,13 @@ def generate_normal_logs(users, start_date, days):
         current_time += timedelta(hours=1)
     return logs
 
-# --- 3. INJECT ATTACKS ---
 def inject_brute_force(users, logs, start_date, num_attacks=10):
-    """Simulates rapid failed login attempts from a single IP."""
     attack_logs = []
     for _ in range(num_attacks):
         target = random.choice(users)
         malicious_ip = fake.ipv4()
         attack_time = start_date + timedelta(days=random.randint(0, NUM_DAYS-1), hours=random.randint(0, 23))
         
-        # Generate 15-30 failed attempts in a 2-minute window
         for i in range(random.randint(15, 30)):
             attack_logs.append({
                 'timestamp': attack_time + timedelta(seconds=i*4),
@@ -98,13 +82,11 @@ def inject_brute_force(users, logs, start_date, num_attacks=10):
     return logs + attack_logs
 
 def inject_impossible_travel(users, logs, start_date, num_attacks=5):
-    """Simulates logins from two distant geographical locations in an impossible timeframe."""
     attack_logs = []
     for _ in range(num_attacks):
         target = random.choice(users)
         attack_time = start_date + timedelta(days=random.randint(0, NUM_DAYS-1), hours=random.randint(8, 15))
         
-        # Log 1: Normal location
         attack_logs.append({
             'timestamp': attack_time,
             'entity_id': target['entity_id'],
@@ -119,13 +101,12 @@ def inject_impossible_travel(users, logs, start_date, num_attacks=5):
             'label': 'normal'
         })
         
-        # Log 2: Distant location 15 minutes later
         attack_logs.append({
             'timestamp': attack_time + timedelta(minutes=15),
             'entity_id': target['entity_id'],
             'entity_type': target['role'],
             'source_ip': fake.ipv4(),
-            'geo_location': 'Moscow, RU', # Clear anomaly
+            'geo_location': 'Moscow, RU',
             'resource_accessed': 'VPN_Gateway',
             'auth_method': 'Password',
             'device_fingerprint': fake.mac_address(),
@@ -136,21 +117,18 @@ def inject_impossible_travel(users, logs, start_date, num_attacks=5):
     return logs + attack_logs
 
 def inject_lateral_movement(users, logs, start_date, num_attacks=5):
-    """Simulates a standard employee suddenly accessing restricted databases."""
     attack_logs = []
     employees = [u for u in users if u['role'] == 'Employee']
     
     for _ in range(num_attacks):
         target = random.choice(employees)
-        attack_time = start_date + timedelta(days=random.randint(0, NUM_DAYS-1), hours=random.randint(1, 4)) # Off-hours
-        
-        # Sequence of unusual access
+        attack_time = start_date + timedelta(days=random.randint(0, NUM_DAYS-1), hours=random.randint(1, 4))
         for i, resource in enumerate(['Finance_DB', 'AWS_Console']):
             attack_logs.append({
                 'timestamp': attack_time + timedelta(minutes=i*10),
                 'entity_id': target['entity_id'],
                 'entity_type': target['role'],
-                'source_ip': target['base_ip'], # Same IP (insider threat/compromised machine)
+                'source_ip': target['base_ip'],
                 'geo_location': target['usual_location'],
                 'resource_accessed': resource,
                 'auth_method': 'MFA_Token',
@@ -173,11 +151,10 @@ if __name__ == "__main__":
     logs_with_travel = inject_impossible_travel(users, logs_with_bf, START_DATE)
     final_logs = inject_lateral_movement(users, logs_with_travel, START_DATE)
     
-    # Convert to DataFrame and sort by time
+
     df = pd.DataFrame(final_logs)
     df = df.sort_values(by='timestamp').reset_index(drop=True)
     
-    # Save to CSV
     output_path = os.path.join(OUTPUT_DIR, "synthetic_logs.csv")
     df.to_csv(output_path, index=False)
     
