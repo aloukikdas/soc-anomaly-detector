@@ -51,8 +51,6 @@ async def simulate_stream(background_tasks: BackgroundTasks, db: Session = Depen
         try:
             csv_path = os.path.join(os.path.dirname(__file__), 'data', 'synthetic_logs.csv')
             df = pd.read_csv(csv_path)
-            
-            # ENTERPRISE DEMO LOGIC: Ensure true diversity across Entities and Attack Types
             df_attacks = df[df['label'] != 'normal']
             df_normal = df[df['label'] == 'normal']
             
@@ -85,7 +83,6 @@ async def simulate_stream(background_tasks: BackgroundTasks, db: Session = Depen
             print("--- SIMULATION SUCCESS: Alerts injected into database! ---")
             
         except Exception as e:
-            # If it crashes in the background, print exactly why to the terminal
             print(f"\nCRITICAL ERROR IN SIMULATION: {e}\n")
 
     background_tasks.add_task(run_simulation)
