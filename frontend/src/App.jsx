@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Activity, Server, AlertTriangle, Zap, User, Shield, Download, Terminal } from 'lucide-react';
+import { ShieldAlert, Activity, Server, AlertTriangle, Zap, User, Shield, Download, Search, Filter } from 'lucide-react';
 import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts';
 
 function App() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('All');
+  const [filterRisk, setFilterRisk] = useState('All');
 
   const fetchAlerts = async () => {
     try {
@@ -52,6 +55,16 @@ function App() {
     a.click();
   };
 
+  const filteredAlerts = alerts.filter(alert => {
+    const matchesSearch = alert.entity_type.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          alert.source_ip.includes(searchTerm);
+    const matchesType = filterType === 'All' || alert.anomaly_type === filterType;
+    const matchesRisk = filterRisk === 'All' ? true :
+                        filterRisk === 'Critical' ? alert.risk_score >= 80 :
+                        filterRisk === 'Elevated' ? alert.risk_score >= 50 && alert.risk_score < 80 :
+                        alert.risk_score < 50;
+    return matchesSearch && matchesType && matchesRisk;
+  });
   const chartData = alerts.map(alert => ({
     time: new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     risk: alert.risk_score
@@ -171,6 +184,43 @@ function App() {
         <div className="p-5 border-b border-gray-700 bg-gray-800/40 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-white tracking-wide">Threat Detection Queue</h2>
         </div>
+        {/* NEW: Search and Filter Bar */}
+        <div className="bg-gray-800/20 p-4 border-b border-gray-700/50 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input 
+              type="text" 
+              placeholder="Search IP or Entity..." 
+              className="w-full bg-gray-900/50 border border-gray-700 text-white text-sm rounded-md pl-9 pr-4 py-2 focus:outline-none focus:border-sky-500 transition-colors"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <select 
+              className="bg-gray-900/50 border border-gray-700 text-gray-300 text-sm rounded-md px-3 py-2 focus:outline-none focus:border-sky-500"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="All">All Threats</option>
+              <option value="brute_force">Brute Force</option>
+              <option value="lateral_movement">Lateral Movement</option>
+              <option value="impossible_travel">Impossible Travel</option>
+              <option value="normal">Normal</option>
+            </select>
+            <select 
+              className="bg-gray-900/50 border border-gray-700 text-gray-300 text-sm rounded-md px-3 py-2 focus:outline-none focus:border-sky-500"
+              value={filterRisk}
+              onChange={(e) => setFilterRisk(e.target.value)}
+            >
+              <option value="All">Any Risk</option>
+              <option value="Critical">Critical (&ge;80)</option>
+              <option value="Elevated">Elevated (50-79)</option>
+              <option value="Low">Low (&lt;50)</option>
+            </select>
+          </div>
+        </div>
         <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
           <table className="w-full text-left text-sm relative">
             <thead className="bg-gray-900/90 text-gray-400 sticky top-0 z-10">
@@ -189,7 +239,7 @@ function App() {
               ) : alerts.length === 0 ? (
                 <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">Awaiting stream telemetry...</td></tr>
               ) : (
-                alerts.map((alert) => (
+                filteredAlerts.map((alert) => (
                   <tr key={alert.id} className="hover:bg-gray-800/50 transition-colors group">
                     <td className="px-6 py-4 whitespace-nowrap text-gray-400 font-mono text-xs">
                       {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
