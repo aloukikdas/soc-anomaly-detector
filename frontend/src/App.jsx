@@ -32,7 +32,6 @@ function App() {
     setIsSimulating(true);
     try {
       await fetch('http://127.0.0.1:8000/api/simulate');
-      // Keep the tactical scanning animation up for exactly 3 seconds for dramatic effect
       setTimeout(() => setIsSimulating(false), 3000); 
     } catch (error) {
       console.error("Simulation error:", error);
@@ -40,7 +39,6 @@ function App() {
     }
   };
 
-  // Enterprise Feature: Export to CSV
   const exportToCSV = () => {
     const headers = "Timestamp,Entity,IP,Resource,Classification,Risk Score,AI Analysis\n";
     const rows = alerts.map(a => 
@@ -72,39 +70,23 @@ function App() {
 
   return (
     <div className="min-h-screen p-6 relative">
-      
-      {/* MINIMALIST CYBER RADAR OVERLAY */}
       {isSimulating && (
-        <div className="absolute inset-0 z-50 bg-[#070b14]/10 backdrop-blur-sm flex flex-col items-center justify-center p-6 transition-all duration-300">
-          
-          {/* Radar Container */}
+        <div className="absolute inset-0 z-50 bg-[#070b14]/30 backdrop-blur-sm flex flex-col items-center justify-center p-6 transition-all duration-300">
           <div className="relative w-56 h-56 mb-8 rounded-full border border-sky-900/40 bg-[#020617] shadow-[0_0_60px_rgba(14,165,233,0.15)] overflow-hidden flex items-center justify-center">
-            
-            {/* Radar Sweep Effect (Tailwind conic gradient) */}
             <div className="absolute inset-0 rounded-full animate-[spin_2s_linear_infinite]" 
                  style={{ background: 'conic-gradient(from 0deg, transparent 75%, rgba(56, 189, 248, 0.6) 100%)' }}>
             </div>
-            
-            {/* Crosshairs */}
             <div className="absolute inset-0 bg-[linear-gradient(transparent_49.5%,rgba(14,165,233,0.2)_50%,transparent_50.5%),linear-gradient(90deg,transparent_49.5%,rgba(14,165,233,0.2)_50%,transparent_50.5%)]"></div>
-
-            {/* Concentric Rings */}
             <div className="absolute w-3/4 h-3/4 border border-sky-900/30 rounded-full"></div>
             <div className="absolute w-2/4 h-2/4 border border-sky-900/30 rounded-full"></div>
-
-            {/* Inner Shield */}
             <div className="relative z-10 bg-[#070b14] p-5 rounded-full border border-sky-500/30 shadow-[0_0_20px_rgba(56,189,248,0.2)]">
                <ShieldAlert className="w-10 h-10 text-sky-400 animate-pulse drop-shadow-[0_0_10px_rgba(56,189,248,0.8)]" />
             </div>
           </div>
-
-          {/* Minimal Typography */}
           <div className="flex flex-col items-center">
             <h2 className="text-sky-400 text-lg font-mono tracking-[0.4em] uppercase animate-pulse drop-shadow-md">
               Intercepting Traffic
             </h2>
-            
-            {/* Sleek Loading Dots */}
             <div className="mt-5 flex items-center gap-3">
               <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-ping"></div>
               <div className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-[ping_1s_cubic-bezier(0,0,0.2,1)_infinite_0.2s]"></div>
